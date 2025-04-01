@@ -97,3 +97,150 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+## Configuração do Banco de Dados PostgreSQL
+
+### Pré-requisitos
+- PostgreSQL instalado e rodando
+- Node.js e npm instalados
+
+### Configuração do Ambiente
+1. Crie um arquivo `.env` na raiz do projeto com as seguintes variáveis:
+
+```
+PORT=3000
+DATABASE_URL=postgresql://usuario:senha@localhost:5432/streamingdb
+JWT_SECRET=minha_chave_secreta
+AWS_ACCESS_KEY_ID=sua_chave
+AWS_SECRET_ACCESS_KEY=sua_chave_secreta
+AWS_REGION=sua_regiao
+AWS_BUCKET=sua_bucket
+REDIS_HOST=localhost
+REDIS_PORT=6379
+```
+
+2. Crie o banco de dados PostgreSQL:
+
+**No Windows:**
+```bash
+npm run db:create:win
+```
+
+**No Linux/Mac:**
+```bash
+npm run db:create:unix
+```
+
+Ou crie manualmente usando o PostgreSQL:
+```sql
+CREATE USER usuario WITH PASSWORD 'senha';
+CREATE DATABASE streamingdb OWNER usuario;
+GRANT ALL PRIVILEGES ON DATABASE streamingdb TO usuario;
+```
+
+### Executar o Projeto
+```bash
+# Instalar dependências
+npm install
+
+# Executar em modo de desenvolvimento
+npm run start:dev
+```
+
+## Configuração com Docker
+
+### Pré-requisitos
+- Docker e Docker Compose instalados
+
+### Iniciar os Serviços
+Execute o seguinte comando na pasta do projeto:
+
+```bash
+docker-compose up -d
+```
+
+Isso irá iniciar:
+- PostgreSQL na porta 5432
+- Redis na porta 6379
+
+### Parar os Serviços
+```bash
+docker-compose down
+```
+
+Para remover os volumes também:
+```bash
+docker-compose down -v
+```
+
+## Configuração da Plataforma de Streaming
+
+Esta aplicação é uma plataforma de streaming semelhante à Netflix, construída com NestJS e PostgreSQL. Oferece autenticação segura (JWT), gerenciamento de usuários, filmes, séries e um painel administrativo.
+
+### Recursos
+
+- **Autenticação:** JWT + Passport para autenticação segura
+- **Gestão de Usuários:** Cadastro, login e perfis de usuários
+- **Conteúdo:** Upload e gerenciamento de vídeos, séries e episódios
+- **Painel Admin:** Interface para administradores gerenciarem conteúdos
+- **Streaming:** API para streaming de conteúdo audiovisual
+
+### Pré-requisitos
+
+- Node.js 16+
+- Docker e Docker-Compose
+- PostgreSQL
+- Redis (opcional, para cache e filas)
+
+### Instalação
+
+1. Clone o repositório
+2. Instale as dependências:
+
+```bash
+cd backend
+npm run install:deps
+```
+
+3. Configure o banco de dados usando Docker:
+
+```bash
+docker-compose up -d
+```
+
+4. Execute a aplicação:
+
+```bash
+npm run dev
+```
+
+### Endpoints da API
+
+#### Autenticação
+
+- `POST /auth/register` - Registrar um novo usuário
+- `POST /auth/login` - Login de usuário
+- `GET /auth/profile` - Obter perfil do usuário autenticado
+
+#### Usuários
+
+- `GET /users` - Listar todos os usuários (admin)
+- `GET /users/:id` - Obter usuário específico
+- `PATCH /users/:id` - Atualizar usuário
+- `DELETE /users/:id` - Remover usuário (admin)
+
+#### Vídeos
+
+- `POST /videos` - Adicionar novo vídeo
+- `GET /videos` - Listar todos os vídeos
+- `GET /videos/:id` - Obter vídeo específico
+- `PATCH /videos/:id` - Atualizar vídeo
+- `DELETE /videos/:id` - Remover vídeo
+
+#### Séries
+
+- `POST /series` - Adicionar nova série
+- `GET /series` - Listar todas as séries
+- `GET /series/:id` - Obter série específica
+- `PATCH /series/:id` - Atualizar série
+- `DELETE /series/:id` - Remover série
