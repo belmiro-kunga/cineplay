@@ -1,5 +1,8 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
 import { SeriesService } from './series.service';
+import { CreateSeriesDto } from './dto/create-series.dto';
+import { CreateSeasonDto } from '../seasons/dto/create-season.dto';
+import { CreateEpisodeDto } from '../episodes/dto/create-episode.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 
@@ -7,43 +10,58 @@ import { AdminGuard } from '../auth/guards/admin.guard';
 export class SeriesController {
   constructor(private readonly seriesService: SeriesService) {}
 
+  @Post()
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  create(@Body() createSeriesDto: CreateSeriesDto) {
+    return this.seriesService.create(createSeriesDto);
+  }
+
   @Get()
-  async findAll() {
+  findAll() {
     return this.seriesService.findAll();
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
+  findOne(@Param('id') id: string) {
     return this.seriesService.findOne(id);
   }
 
-  @UseGuards(JwtAuthGuard, AdminGuard)
-  @Post()
-  async create(@Body() createSeriesDto: any) {
-    return this.seriesService.create(createSeriesDto);
-  }
-
-  @UseGuards(JwtAuthGuard, AdminGuard)
-  @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateSeriesDto: any) {
-    return this.seriesService.update(id, updateSeriesDto);
-  }
-
-  @UseGuards(JwtAuthGuard, AdminGuard)
-  @Delete(':id')
-  async remove(@Param('id') id: string) {
-    return this.seriesService.remove(id);
-  }
-
-  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post(':id/seasons')
-  async addSeason(@Param('id') id: string, @Body() createSeasonDto: any) {
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  addSeason(
+    @Param('id') id: string,
+    @Body() createSeasonDto: CreateSeasonDto,
+  ) {
     return this.seriesService.addSeason(id, createSeasonDto);
   }
 
-  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post('seasons/:id/episodes')
-  async addEpisode(@Param('id') id: string, @Body() createEpisodeDto: any) {
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  addEpisode(
+    @Param('id') id: string,
+    @Body() createEpisodeDto: CreateEpisodeDto,
+  ) {
     return this.seriesService.addEpisode(id, createEpisodeDto);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  remove(@Param('id') id: string) {
+    return this.seriesService.remove(id);
+  }
+
+  @Post('episodes/:id/view')
+  @UseGuards(JwtAuthGuard)
+  incrementViews(@Param('id') id: string) {
+    return this.seriesService.incrementViews(id);
+  }
+
+  @Post('episodes/:id/rating')
+  @UseGuards(JwtAuthGuard)
+  updateRating(
+    @Param('id') id: string,
+    @Body('rating') rating: number,
+  ) {
+    return this.seriesService.updateRating(id, rating);
   }
 } 

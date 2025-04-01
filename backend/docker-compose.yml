@@ -2,35 +2,57 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:15
-    container_name: postgres-streamingdb
+    image: postgres:15-alpine
+    container_name: cineplay-postgres
+    restart: always
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: usuario
-      POSTGRES_PASSWORD: senha
-      POSTGRES_DB: streamingdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cineplaydb
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - streaming-network
-    restart: unless-stopped
+      - cineplay-network
 
   redis:
     image: redis:alpine
-    container_name: redis-streaming
+    container_name: cineplay-redis
+    restart: always
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
-      - streaming-network
-    restart: unless-stopped
+      - cineplay-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cineplay-api
+    restart: always
+    ports:
+      - "3003:3003"
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/cineplaydb
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NODE_ENV=development
+    volumes:
+      - ./src:/app/src
+      - ./uploads:/app/uploads
+    networks:
+      - cineplay-network
+
+networks:
+  cineplay-network:
+    driver: bridge
 
 volumes:
   postgres_data:
-  redis_data:
-
-networks:
-  streaming-network:
-    driver: bridge 
+  redis_data: 

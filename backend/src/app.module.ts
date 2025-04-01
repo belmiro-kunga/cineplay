@@ -18,6 +18,7 @@ global.crypto = crypto;
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: '.env',
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -25,8 +26,14 @@ global.crypto = crypto;
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         url: configService.get('DATABASE_URL'),
+        entities: ['dist/**/*.entity.js'],
         autoLoadEntities: true,
         synchronize: process.env.NODE_ENV !== 'production',
+        logging: process.env.NODE_ENV !== 'production',
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+        retryAttempts: 10,
+        retryDelay: 3000,
+        connectTimeoutMS: 10000,
       }),
     }),
     AuthModule,

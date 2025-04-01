@@ -5,19 +5,46 @@ import { RegisterDto } from './dto/register.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { OAuthLoginDto } from './dto/oauth-login.dto';
+import { QRCodeGenerateDto, QRCodeValidateDto } from './dto/qrcode-auth.dto';
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
+// import * as qrcode from 'qrcode';
+// import * as speakeasy from 'speakeasy';
+import { ConfigService } from '@nestjs/config';
+import { createClient } from 'redis';
 
 @Injectable()
 export class AuthService {
   // Simulação de armazenamento de tokens para redefinição de senha
   private passwordResetTokens: Map<string, { userId: string; expiresAt: Date }> = new Map();
+  private redisClient;
+  
+  // Armazenamento temporário para tokens QR Code (em produção, usar Redis)
+  private qrCodeTokens: Map<string, { userId: string; expiresAt: Date }> = new Map();
 
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.initRedis();
+  }
+
+  private async initRedis() {
+    try {
+      this.redisClient = createClient({
+        url: `redis://${this.configService.get('REDIS_HOST')}:${this.configService.get('REDIS_PORT')}`,
+      });
+      
+      this.redisClient.on('error', (err) => console.log('Redis Client Error', err));
+      
+      await this.redisClient.connect();
+      console.log('Redis conectado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao conectar ao Redis:', error);
+    }
+  }
 
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.usersService.findByEmail(email);
@@ -31,10 +58,14 @@ export class AuthService {
   }
 
   async login(user: any) {
+    // Atualizar o último login do usuário
+    await this.usersService.updateLastLogin(user.id);
+    
     const payload = {
       email: user.email,
       sub: user.id,
       isAdmin: user.isAdmin,
+      role: user.role,
     };
 
     return {
@@ -44,6 +75,8 @@ export class AuthService {
         email: user.email,
         name: user.name,
         isAdmin: user.isAdmin,
+        role: user.role,
+        profilePicture: user.profilePicture,
       },
     };
   }
@@ -226,6 +259,155 @@ export class AuthService {
       };
     } catch (error) {
       throw new UnauthorizedException('Token do Facebook inválido');
+    }
+  }
+
+  // Métodos para autenticação via QR Code - Implementação simplificada
+  async generateQRCode(qrCodeDto: QRCodeGenerateDto) {
+    const { userId } = qrCodeDto;
+    
+    // Verificar se o usuário existe
+    const user = await this.usersService.findOne(userId);
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
+    
+    // Gerar um token único para referência
+    const qrToken = uuidv4();
+    
+    // Configurar a expiração (5 minutos)
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 5);
+    
+    try {
+      // Tentar armazenar no Redis se possível
+      if (this.redisClient && this.redisClient.isReady) {
+        await this.redisClient.set(
+          `qrcode:${qrToken}`, 
+          JSON.stringify({
+            userId: user.id,
+          }),
+          { EX: 300 } // 5 minutos (300 segundos)
+        );
+      } else {
+        // Fallback para armazenamento em memória
+        this.qrCodeTokens.set(qrToken, {
+          userId: user.id,
+          expiresAt
+        });
+      }
+      
+      // Como não temos a biblioteca QRCode, retornamos apenas o token
+      // Em um cenário real, esse token seria convertido em um QR Code
+      return {
+        token: qrToken,
+        loginUrl: `${this.configService.get('APP_URL', 'http://localhost:3003')}/auth/qrcode/validate/${qrToken}`,
+        expiresIn: 300, // 5 minutos em segundos
+        message: 'Use este token para autenticação por QR Code. Em uma implementação completa, este seria um QR Code.',
+      };
+    } catch (error) {
+      console.error('Erro ao gerar QR Code:', error);
+      throw new BadRequestException('Erro ao gerar QR Code');
+    }
+  }
+  
+  async validateQRCode(validateDto: QRCodeValidateDto) {
+    const { token } = validateDto;
+    
+    let userId = null;
+    let isValid = false;
+    
+    try {
+      // Tentar buscar do Redis se possível
+      if (this.redisClient && this.redisClient.isReady) {
+        const tokenData = await this.redisClient.get(`qrcode:${token}`);
+        if (tokenData) {
+          const data = JSON.parse(tokenData);
+          userId = data.userId;
+          isValid = true;
+          // Apagar o token do Redis para uso único
+          await this.redisClient.del(`qrcode:${token}`);
+        }
+      } else {
+        // Fallback para busca em memória
+        if (this.qrCodeTokens.has(token)) {
+          const data = this.qrCodeTokens.get(token);
+          if (data.expiresAt > new Date()) {
+            userId = data.userId;
+            isValid = true;
+            // Apagar o token da memória para uso único
+            this.qrCodeTokens.delete(token);
+          }
+        }
+      }
+      
+      if (!isValid) {
+        throw new UnauthorizedException('QR Code inválido ou expirado');
+      }
+      
+      // Buscar o usuário
+      const user = await this.usersService.findOne(userId);
+      if (!user) {
+        throw new NotFoundException('Usuário não encontrado');
+      }
+      
+      // Atualizar o último login do usuário
+      await this.usersService.updateLastLogin(userId);
+      
+      // Gerar JWT token para o usuário
+      const payload = {
+        email: user.email,
+        sub: user.id,
+        isAdmin: user.isAdmin,
+        role: user.role,
+      };
+      
+      return {
+        accessToken: this.jwtService.sign(payload),
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          isAdmin: user.isAdmin,
+          role: user.role,
+          profilePicture: user.profilePicture,
+        },
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException || error instanceof NotFoundException) {
+        throw error;
+      }
+      console.error('Erro ao validar QR Code:', error);
+      throw new BadRequestException('Erro ao validar QR Code');
+    }
+  }
+  
+  async checkQRCodeStatus(token: string) {
+    let isValid = false;
+    
+    try {
+      // Tentar buscar do Redis se possível
+      if (this.redisClient && this.redisClient.isReady) {
+        const tokenData = await this.redisClient.get(`qrcode:${token}`);
+        isValid = !!tokenData;
+      } else {
+        // Fallback para busca em memória
+        if (this.qrCodeTokens.has(token)) {
+          const data = this.qrCodeTokens.get(token);
+          isValid = data.expiresAt > new Date();
+        }
+      }
+      
+      return { 
+        valid: isValid, 
+        message: isValid ? 'QR Code válido' : 'QR Code inválido ou expirado' 
+      };
+    } catch (error) {
+      console.error('Erro ao verificar status do QR Code:', error);
+      return { 
+        valid: false, 
+        message: 'Erro ao verificar status do QR Code' 
+      };
     }
   }
 } 

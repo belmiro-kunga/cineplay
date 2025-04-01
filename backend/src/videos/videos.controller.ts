@@ -1,8 +1,26 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, UseInterceptors, UploadedFile, Request, Query } from '@nestjs/common';
+import { 
+  Controller, 
+  Get, 
+  Post, 
+  Body, 
+  Patch, 
+  Param, 
+  Delete, 
+  UseGuards, 
+  UseInterceptors, 
+  UploadedFile, 
+  Request,
+  ParseUUIDPipe,
+  MaxFileSizeValidator,
+  ParseFilePipe,
+  FileTypeValidator
+} from '@nestjs/common';
 import { VideosService } from './videos.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Multer } from 'multer';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 @Controller('videos')
 export class VideosController {
@@ -16,42 +34,58 @@ export class VideosController {
 
   @UseGuards(JwtAuthGuard)
   @Get(':id')
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.videosService.findOne(id);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('video', {
+    storage: diskStorage({
+      destination: './uploads/temp',
+      filename: (req, file, cb) => {
+        const uniqueSuffix = uuidv4();
+        cb(null, `${uniqueSuffix}${extname(file.originalname)}`);
+      },
+    }),
+  }))
   async create(
-    @Body() createVideoDto: any, 
-    @UploadedFile() file: any, 
-    @Request() req
+    @Body() createVideoDto: any,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 1024 * 1024 * 1024 }), // 1GB
+          new FileTypeValidator({ fileType: '.(mp4|mov|avi|mkv)' }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+    @Request() req,
   ) {
-    // Em um ambiente real, o arquivo seria enviado para um serviço de armazenamento como S3
-    const fileUrl = `uploads/videos/${file.filename}`;
-    return this.videosService.create(
+    return this.videosService.createWithUpload(
       createVideoDto,
       req.user,
-      fileUrl,
-      file.filename,
+      file.path,
     );
   }
 
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateVideoDto: any) {
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateVideoDto: any,
+  ) {
     return this.videosService.update(id, updateVideoDto);
   }
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.videosService.remove(id);
   }
 
   @Post(':id/view')
-  async incrementViews(@Param('id') id: string) {
+  async incrementViews(@Param('id', ParseUUIDPipe) id: string) {
     await this.videosService.incrementViews(id);
     return { success: true };
   }

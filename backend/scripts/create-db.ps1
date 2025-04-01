@@ -1,37 +1,34 @@
-# Definindo variáveis
-$DB_USER = "usuario"
-$DB_PASSWORD = "senha"
-$DB_HOST = "localhost"
-$DB_PORT = "5432"
-$DB_NAME = "streamingdb"
+# Script para criar o banco de dados PostgreSQL no Windows com psql
 
-# Verificando se o PostgreSQL está instalado
-try {
-    $psqlPath = (Get-Command psql -ErrorAction Stop).Source
-    Write-Host "PostgreSQL encontrado em: $psqlPath"
-} catch {
-    Write-Host "PostgreSQL não está instalado ou não está no PATH. Por favor, instale-o primeiro."
-    exit 1
+# Carregar variáveis de ambiente do arquivo .env
+$envFile = ".env"
+if (Test-Path $envFile) {
+    Get-Content $envFile | ForEach-Object {
+        if ($_ -match "DATABASE_URL=(.*)") {
+            $dbUrl = $matches[1]
+        }
+    }
 }
 
-# Criar banco de dados
-Write-Host "Criando banco de dados..."
-try {
-    # Cria o usuário
-    $cmd = "psql -h $DB_HOST -p $DB_PORT -U postgres -c ""CREATE USER $DB_USER WITH PASSWORD '$DB_PASSWORD';"""
-    Invoke-Expression $cmd -ErrorAction SilentlyContinue
+# Extrair componentes da URL
+if ($dbUrl -match "postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)") {
+    $username = $matches[1]
+    $password = $matches[2]
+    $hostname = $matches[3]
+    $port = $matches[4]
+    $dbname = $matches[5]
     
-    # Cria o banco de dados
-    $cmd = "psql -h $DB_HOST -p $DB_PORT -U postgres -c ""CREATE DATABASE $DB_NAME OWNER $DB_USER;"""
-    Invoke-Expression $cmd -ErrorAction SilentlyContinue
+    Write-Host "Tentando criar o banco de dados '$dbname'..."
     
-    # Concede privilégios
-    $cmd = "psql -h $DB_HOST -p $DB_PORT -U postgres -c ""GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;"""
-    Invoke-Expression $cmd -ErrorAction SilentlyContinue
+    # Criar o banco de dados usando psql
+    $env:PGPASSWORD = $password
+    & psql -h $hostname -p $port -U $username -d postgres -c "CREATE DATABASE $dbname WITH ENCODING 'UTF8' LC_COLLATE='en_US.UTF-8' LC_CTYPE='en_US.UTF-8';"
     
-    Write-Host "Banco de dados criado com sucesso!"
-    Write-Host "Você pode conectar-se usando: postgresql://$DB_USER`:$DB_PASSWORD@$DB_HOST`:$DB_PORT/$DB_NAME"
-} catch {
-    Write-Host "Erro ao criar o banco de dados: $_"
-    exit 1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Banco de dados '$dbname' criado com sucesso!" -ForegroundColor Green
+    } else {
+        Write-Host "Erro ao criar o banco de dados. Ele já pode existir ou houve um problema de conexão." -ForegroundColor Red
+    }
+} else {
+    Write-Host "Formato de DATABASE_URL inválido no arquivo .env. Por favor, verifique o formato." -ForegroundColor Red
 } 

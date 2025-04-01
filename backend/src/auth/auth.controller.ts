@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Request, Get, Req, Res } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Request, Get, Req, Res, Param } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -9,6 +9,7 @@ import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { OAuthLoginDto } from './dto/oauth-login.dto';
+import { QRCodeGenerateDto, QRCodeValidateDto, QRCodeStatusDto } from './dto/qrcode-auth.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -44,6 +45,22 @@ export class AuthController {
   @Post('oauth/login')
   async oauthLogin(@Body() oauthLoginDto: OAuthLoginDto) {
     return this.authService.oauthLogin(oauthLoginDto);
+  }
+
+  // Rotas para QR Code
+  @Post('qrcode/generate')
+  async generateQRCode(@Body() qrCodeDto: QRCodeGenerateDto) {
+    return this.authService.generateQRCode(qrCodeDto);
+  }
+
+  @Post('qrcode/validate')
+  async validateQRCode(@Body() validateDto: QRCodeValidateDto) {
+    return this.authService.validateQRCode(validateDto);
+  }
+
+  @Get('qrcode/status/:token')
+  async checkQRCodeStatus(@Param('token') token: string) {
+    return this.authService.checkQRCodeStatus(token);
   }
 
   // Rotas para autenticação direta com Google

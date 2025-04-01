@@ -9,6 +9,9 @@ export class Series {
   @Column()
   title: string;
 
+  @Column({ nullable: true })
+  originalTitle: string;
+
   @Column({ nullable: true, type: 'text' })
   description: string;
 
@@ -23,6 +26,15 @@ export class Series {
 
   @Column({ type: 'simple-array', nullable: true })
   genres: string[];
+
+  @Column({ nullable: true })
+  ageRating: string;
+
+  @Column({ type: 'simple-array', nullable: true })
+  cast: string[];
+
+  @Column({ nullable: true })
+  director: string;
 
   @Column({ default: 0 })
   views: number;

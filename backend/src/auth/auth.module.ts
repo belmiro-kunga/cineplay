@@ -14,6 +14,7 @@ import { UsersModule } from '../users/users.module';
   imports: [
     UsersModule,
     PassportModule,
+    ConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -29,7 +30,8 @@ import { UsersModule } from '../users/users.module';
     JwtStrategy, 
     LocalStrategy,
     GoogleStrategy,
-    FacebookStrategy
+    FacebookStrategy,
+    ConfigService
   ],
   exports: [AuthService],
 })
